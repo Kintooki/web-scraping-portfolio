@@ -1,26 +1,46 @@
+import os
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import os
 
-# Create output folder if it doesn't exist
+# 1️⃣ Create the output directory if it doesn't exist
 os.makedirs("output", exist_ok=True)
 
-URL = "https://www.bbc.com/news"
-response = requests.get(URL)
-response.raise_for_status()  # Ensure successful request
+# 2️⃣ Define target URL + headers
+url = "https://news.ycombinator.com/"
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+}
 
-soup = BeautifulSoup(response.text, "html.parser")
+# 3️⃣ Fetch the page
+resp = requests.get(url, headers=headers)
+resp.raise_for_status()
+soup = BeautifulSoup(resp.text, "html.parser")
 
-headlines = []
-for item in soup.select("a.gs-c-promo-heading"):
-    title = item.get_text(strip=True)
-    link = item.get("href")
-    if link and not link.startswith("http"):
-        link = "https://www.bbc.com" + link
-    headlines.append({"title": title, "link": link})
+# 4️⃣ Extract article titles & links
+articles = soup.select("span.titleline > a")
 
-# Convert to DataFrame and save
-df = pd.DataFrame(headlines)
-df.to_csv("output/headlines.csv", index=False)
-print(f"✅ Saved {len(df)} headlines to output/headlines.csv")
+data = []
+for a in articles:
+    title = a.get_text(strip=True)
+    link = a.get("href")
+    if link and link.startswith("/"):
+        link = "https://news.ycombinator.com" + link
+    data.append({"Title": title, "Link": link})
+
+df = pd.DataFrame(data)
+
+# 5️⃣ Generate timestamped filename
+ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+csv_path = f"output/headlines_{ts}.csv"
+json_path = f"output/headlines_{ts}.json"
+
+# 6️⃣ Save both CSV and JSON
+df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+df.to_json(json_path, orient="records", force_ascii=False, indent=2)
+
+# 7️⃣ Print completion message
+print(f"✅ Scraped {len(df)} headlines")
+print(f"Saved to:\n - {csv_path}\n - {json_path}")
